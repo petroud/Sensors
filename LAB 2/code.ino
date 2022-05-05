@@ -4,14 +4,13 @@ int sensorValue = 0; //Variable to store the value of the photoresistor
 float voltageScaled = 0;
 float limit = 30.0;
 float klimit = 273.2+limit;
-float kelvins, resistance = 0.0;
+float resistance, logR = 0.0;
+float lnDenom = 0.0;
+double kelvins;
+double R0 = 98500;
 
-float beta = 0.0;
-float R0 = 0.0;
-float R1 = 220;
-float R2 = 100000;
-float logR2 = log(R2);
-float A,B,C;
+float beta = 4250.0;
+
 
 void setup() {
   Serial.begin(9600);
@@ -23,13 +22,17 @@ void loop() {
   //Convert to voltage scale 0..5v
   voltageScaled = sensorValue * (5.0 / 1023.0);
 
-  kelvins = (1.0 / (A + B*logR2 + C*logR2*logR2*logR2));
-  resistance = R0 * exp(beta * (1/kelvins - 1/298));
+  //resistance = R0*((5/voltageScaled) - 1);
+  resistance = (voltageScaled*R0)/(5-voltageScaled);
+
   
+  lnDenom = log(resistance/(R0*exp(-beta/298)));
+  kelvins = (beta/lnDenom);
+    
   if(kelvins>klimit){
-    digitalWrite(ledPin,LOW);
-  }else{
     digitalWrite(ledPin,HIGH);
+  }else{
+    digitalWrite(ledPin,LOW);
   } 
 
   Serial.print(sensorValue);
