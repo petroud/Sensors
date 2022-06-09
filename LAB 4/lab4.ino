@@ -5,33 +5,30 @@
 SoftwareSerial AT(RX,TX); 
 
 // TODO: change user config
-String ssid     = "SSID_ROUTER"; //Wifi SSID
-String password = "PASSWORD_ROUTER"; //Wifi Password
+String ssid     = "HPY413"; //Wifi SSID
+String password = "#@!PY314"; //Wifi Password
 
 //Requests uri 
 String requestUri1 = "GET /update?api_key=AXGNNYBQCY2NNXIB&field1=";
-String requestUri2 = "GET /update?api_key=AXGNNYBQCY2NNXIB&field2=";
-String requestUri3 = "GET /update?api_key=__API_KEY__&field2=";
+String tempArg = "&field2=";
+String requestUri2 = "GET /update?api_key=MVZ6ZSXYVRZ5X7GK&field2=";
 
 // Channel public link : https://thingspeak.com/channels/1723656
 String host = "api.thingspeak.com";  // API host name
-String port = "80";      // port
-
 int AT_cmd_time; 
 boolean AT_cmd_result = false; 
 
-
 int sensorValue = 0;
 int terminationValue = 0;
-int terminationLimit = -1;
+int terminationLimit = 4;
+float voltageTermin = 0.0;
 float voltageLM = 0.0;
 float temp = 0.0;
-float temp_ref = 25.0;
+float temp_ref = 298.2;
 float v_ref = 2.982;
 
 
 void setup() {
-  delay(5000); //Delay to connect the wires between the ESP8266 and the Arduino UNO board
   Serial.begin(9600);
 
   //Initiate serial communication
@@ -54,10 +51,11 @@ void setup() {
 }
 
 void loop() {
-    sensorValue = analogRead(A2);
+    sensorValue = analogRead(A5);
     terminationValue = analogRead(A3);
+    voltageTermin = terminationValue* (5.0 / 1023.0);
 
-    if(terminationValue > terminationLimit){
+    if(voltageTermin > terminationLimit){
       closeTCP();
       delay(1000);
       exit(0);
@@ -65,38 +63,55 @@ void loop() {
 
     voltageLM = sensorValue * (5.0 / 1023.0);
     temp = (voltageLM * temp_ref)/v_ref;
-
+    temp = temp - 273.2;
     Serial.print(voltageLM);
     Serial.print(";");
     Serial.print(temp);
     Serial.print(";");
     Serial.println(terminationValue);
 
-    sendData(requestUri1, voltageLM);
-    delay(7000);
+    sendData(requestUri1, voltageLM, temp);
+    delay(5000);
+    closeTCP();
 
-    sendData(requestUri3, temp);
-    delay(1000);
-    
-    sendData(requestUri2, temp);
+    openTCP();
+    shareData(requestUri2, temp);
+    delay(5000);
+    closeTCP();
+
+    delay(2000);
+    openTCP();
+
+    Serial.println("\n\nNew cycle of measurements\n");
 }
 
 
-void sendData(String request_url, float data){   
-   request_url += String(data,2);
-   sendATcmd("AT+CIPSEND=0," + String(request_url.length() + 4), 10, ">");
-   Serial.print("--> Request URI: ");
+void sendData(String request_url, float voltage, float temp){   
+   request_url += String(voltage,2) + tempArg + String(temp,2);
+   Serial.print("\n--> Request URI: ");
    Serial.println(request_url);
+   sendATcmd("AT+CIPSEND=0," + String(request_url.length() + 4), 10, ">");
    AT.println(request_url);
    delay(3000);
 }
+
+
+void shareData(String request_url,float temp){
+   request_url += String(temp,2);
+   Serial.print("\n--> Request URI: ");
+   Serial.println(request_url);
+   sendATcmd("AT+CIPSEND=0," + String(request_url.length() + 4), 10, ">");
+   AT.println(request_url);
+   delay(3000);
+}
+
 
 
 void openTCP(){
   Serial.println("**********************************************************");
   Serial.println("******* Open TCP connection to Thingspeak REST API *******");
   sendATcmd("AT+CIPMUX=1", 10, "OK");
-  sendATcmd("AT+CIPSTART=0, \"TCP\",\"" + host +"\"," + port, 20, "OK");
+  sendATcmd("AT+CIPSTART=0,\"TCP\",\"" + host +"\"," + "80", 20, "OK");
 }
 
 void closeTCP(){
